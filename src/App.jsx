@@ -54,11 +54,13 @@ function canvasToJpeg(canvas, quality) {
   });
 }
 
-function drawSquareCrop(canvas, image, dimension) {
+function drawSquareCrop(canvas, image, dimension, crop) {
   const context = canvas.getContext("2d");
-  const sourceSize = Math.min(image.width, image.height);
-  const sourceX = (image.width - sourceSize) / 2;
-  const sourceY = (image.height - sourceSize) / 2;
+  const sourceSize = Math.min(image.width, image.height) / crop.zoom;
+  const horizontalRatio = { left: 0, center: 0.5, right: 1 }[crop.horizontal];
+  const verticalRatio = { top: 0, center: 0.5, bottom: 1 }[crop.vertical];
+  const sourceX = (image.width - sourceSize) * horizontalRatio;
+  const sourceY = (image.height - sourceSize) * verticalRatio;
 
   canvas.width = dimension;
   canvas.height = dimension;
@@ -79,8 +81,8 @@ function drawSquareCrop(canvas, image, dimension) {
   );
 }
 
-async function bestJpegForDimension(canvas, image, dimension, maxBytes) {
-  drawSquareCrop(canvas, image, dimension);
+async function bestJpegForDimension(canvas, image, dimension, maxBytes, crop) {
+  drawSquareCrop(canvas, image, dimension, crop);
 
   const highQualityBlob = await canvasToJpeg(canvas, MAX_QUALITY);
   if (highQualityBlob.size < maxBytes) {
@@ -113,7 +115,7 @@ async function bestJpegForDimension(canvas, image, dimension, maxBytes) {
   return { blob: bestBlob, quality: bestQuality, dimension };
 }
 
-async function optimiseImage(canvas, image, preset) {
+async function optimiseImage(canvas, image, preset, crop) {
   const originalSquareSize = Math.floor(Math.min(image.width, image.height));
   const maximumDimension = Math.min(originalSquareSize, preset.exportCap);
 
@@ -126,6 +128,7 @@ async function optimiseImage(canvas, image, preset) {
     image,
     maximumDimension,
     preset.maxBytes,
+    crop,
   );
 
   if (maximumResult) {
@@ -143,6 +146,7 @@ async function optimiseImage(canvas, image, preset) {
       image,
       dimension,
       preset.maxBytes,
+      crop,
     );
 
     if (result) {
@@ -167,6 +171,12 @@ export default function App() {
   const [selectedPreset, setSelectedPreset] = useState("github");
   const [maximumResolutionMode, setMaximumResolutionMode] = useState(false);
   const [customExportCap, setCustomExportCap] = useState(2999);
+  const [previewMode, setPreviewMode] = useState("square");
+  const [crop, setCrop] = useState({
+    zoom: 1,
+    horizontal: "center",
+    vertical: "center",
+  });
   const [sourceFile, setSourceFile] = useState(null);
   const [beforeUrl, setBeforeUrl] = useState("");
   const [afterUrl, setAfterUrl] = useState("");
@@ -189,6 +199,7 @@ export default function App() {
     presetKey,
     exportCap,
     updateSource = true,
+    cropSettings = crop,
   ) {
     if (!file) return;
 
@@ -225,6 +236,7 @@ export default function App() {
           canvasRef.current,
           bitmap,
           activePreset,
+          cropSettings,
         );
       } finally {
         bitmap.close();
@@ -259,7 +271,7 @@ export default function App() {
       const exportCap = maximumResolutionMode
         ? customExportCap
         : PRESETS[presetKey].defaultExportCap;
-      processFile(sourceFile, presetKey, exportCap, false);
+      processFile(sourceFile, presetKey, exportCap, false, crop);
     }
   }
 
@@ -269,13 +281,29 @@ export default function App() {
 
     if (sourceFile) {
       const exportCap = enabled ? customExportCap : preset.defaultExportCap;
-      processFile(sourceFile, selectedPreset, exportCap, false);
+      processFile(sourceFile, selectedPreset, exportCap, false, crop);
     }
   }
 
   function applyCustomExportCap() {
     if (sourceFile && maximumResolutionMode) {
-      processFile(sourceFile, selectedPreset, customExportCap, false);
+      processFile(sourceFile, selectedPreset, customExportCap, false, crop);
+    }
+  }
+
+  function updateCrop(nextCrop) {
+    setCrop(nextCrop);
+    if (sourceFile) {
+      const exportCap = maximumResolutionMode
+        ? customExportCap
+        : preset.defaultExportCap;
+      processFile(
+        sourceFile,
+        selectedPreset,
+        exportCap,
+        false,
+        nextCrop,
+      );
     }
   }
 
@@ -284,7 +312,7 @@ export default function App() {
     const exportCap = maximumResolutionMode
       ? customExportCap
       : preset.defaultExportCap;
-    processFile(event.dataTransfer.files[0], selectedPreset, exportCap);
+    processFile(event.dataTransfer.files[0], selectedPreset, exportCap, true, crop);
   }
 
   return (
@@ -400,7 +428,13 @@ export default function App() {
             const exportCap = maximumResolutionMode
               ? customExportCap
               : preset.defaultExportCap;
-            processFile(event.target.files[0], selectedPreset, exportCap);
+            processFile(
+              event.target.files[0],
+              selectedPreset,
+              exportCap,
+              true,
+              crop,
+            );
           }}
         />
         <div className="upload-mark" aria-hidden="true">
@@ -423,9 +457,68 @@ export default function App() {
       {beforeUrl && (
         <section className="review-section" aria-live="polite">
           <div className="review-heading">
-            <span>Step 3</span>
-            <h2>Review output</h2>
+            <div>
+              <span>Step 3</span>
+              <h2>Review output</h2>
+            </div>
+            <div className="preview-toggle" aria-label="Output preview mode">
+              <button
+                type="button"
+                className={previewMode === "square" ? "active" : ""}
+                aria-pressed={previewMode === "square"}
+                onClick={() => setPreviewMode("square")}
+              >
+                Square preview
+              </button>
+              <button
+                type="button"
+                className={previewMode === "circle" ? "active" : ""}
+                aria-pressed={previewMode === "circle"}
+                onClick={() => setPreviewMode("circle")}
+              >
+                Circle preview
+              </button>
+            </div>
           </div>
+          <section className="crop-controls" aria-labelledby="crop-heading">
+            <div className="crop-copy">
+              <h3 id="crop-heading">Adjust crop</h3>
+              <p>
+                Move and zoom the image so the important part stays visible in
+                both square and circular previews.
+              </p>
+            </div>
+            <div className="zoom-control">
+              <label htmlFor="crop-zoom">Zoom</label>
+              <input
+                id="crop-zoom"
+                type="range"
+                min="1"
+                max="2"
+                step="0.05"
+                value={crop.zoom}
+                onChange={(event) =>
+                  updateCrop({
+                    ...crop,
+                    zoom: Number(event.target.value),
+                  })
+                }
+              />
+              <output htmlFor="crop-zoom">{crop.zoom.toFixed(2)}×</output>
+            </div>
+            <PositionControl
+              label="Horizontal"
+              options={["left", "center", "right"]}
+              value={crop.horizontal}
+              onChange={(horizontal) => updateCrop({ ...crop, horizontal })}
+            />
+            <PositionControl
+              label="Vertical"
+              options={["top", "center", "bottom"]}
+              value={crop.vertical}
+              onChange={(vertical) => updateCrop({ ...crop, vertical })}
+            />
+          </section>
           <div className="results">
             <article className="preview-card">
             <div className="preview-heading">
@@ -456,20 +549,21 @@ export default function App() {
                 {result ? formatBytes(result.blob.size) : "Processing"}
               </span>
             </div>
-            <div className="image-frame">
+            <div className="image-frame output-frame">
               {afterUrl ? (
-                <img src={afterUrl} alt={`Optimised ${preset.name} preview`} />
+                <div
+                  className={`output-preview ${previewMode === "circle" ? "circle" : ""}`}
+                >
+                  <img src={afterUrl} alt={`Optimised ${preset.name} preview`} />
+                </div>
               ) : (
                 <div className="processing-placeholder">Working…</div>
               )}
             </div>
             {afterUrl && (
-              <div className="avatar-preview">
-                <img src={afterUrl} alt="Circular profile avatar preview" />
-                <div>
-                  <span>Avatar preview</span>
-                  <small>Approximate circular profile display</small>
-                </div>
+              <div className="preview-note">
+                Platforms usually display square profile uploads as circles.
+                This preview helps you check the visible crop.
               </div>
             )}
             {result && (
@@ -507,19 +601,18 @@ export default function App() {
 
       {afterUrl && result && (
         <section className="download-panel">
-          <div className="download-step">
-            <span>Step 4</span>
-          </div>
           <div>
-            <span>
-              Ready for {result.platform} · {result.dimension}×{result.dimension} ·{" "}
-              {formatBytes(result.blob.size)} · JPEG quality{" "}
-              {result.quality.toFixed(2)}
-            </span>
+            <strong>Ready for {result.platform}</strong>
             <p>
-              Within limit:{" "}
-              <strong>{result.blob.size < result.maxBytes ? "Yes" : "No"}</strong>
+              {result.dimension}×{result.dimension} ·{" "}
+              {formatBytes(result.blob.size)} · JPEG quality{" "}
+              {result.quality.toFixed(2)} ·{" "}
+              <span>{result.blob.size < result.maxBytes ? "within limit" : "over limit"}</span>
             </p>
+            <small>
+              Download is a square JPEG. GitHub and LinkedIn apply the circular
+              display themselves.
+            </small>
           </div>
           <a
             className="download-button"
@@ -537,5 +630,26 @@ export default function App() {
         Images are processed locally in your browser and never uploaded.
       </footer>
     </main>
+  );
+}
+
+function PositionControl({ label, options, value, onChange }) {
+  return (
+    <div className="position-control">
+      <span>{label}</span>
+      <div>
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            className={value === option ? "active" : ""}
+            aria-pressed={value === option}
+            onClick={() => onChange(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

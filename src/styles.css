@@ -45,8 +45,7 @@ a {
 .eyebrow,
 .section-heading span,
 .drop-step span,
-.review-heading span,
-.download-step span {
+.review-heading span {
   color: #58a6ff;
   font-size: 0.68rem;
   font-weight: 700;
@@ -337,7 +336,108 @@ h1 {
 }
 
 .review-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 9px;
+}
+
+.preview-toggle {
+  display: flex;
+  padding: 3px;
+  border: 1px solid #30363d;
+  border-radius: 7px;
+  background: #161b22;
+}
+
+.preview-toggle button,
+.position-control button {
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #8b949e;
+  cursor: pointer;
+}
+
+.preview-toggle button {
+  padding: 6px 9px;
+  font-size: 0.68rem;
+}
+
+.preview-toggle button.active,
+.position-control button.active {
+  background: #2f81f7;
+  color: #fff;
+}
+
+.crop-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(180px, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+  padding: 11px 13px;
+  border: 1px solid #30363d;
+  border-radius: 9px;
+  background: #161b22;
+}
+
+.crop-copy h3 {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.crop-copy p {
+  margin: 3px 0 0;
+  color: #8b949e;
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+
+.zoom-control {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.zoom-control label,
+.zoom-control output,
+.position-control > span {
+  color: #8b949e;
+  font-size: 0.65rem;
+  font-weight: 650;
+}
+
+.zoom-control input {
+  min-width: 90px;
+  accent-color: #2f81f7;
+}
+
+.zoom-control output {
+  min-width: 34px;
+  color: #f0f6fc;
+  text-align: right;
+}
+
+.position-control {
+  display: grid;
+  gap: 5px;
+}
+
+.position-control > div {
+  display: flex;
+  padding: 2px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: #0d1117;
+}
+
+.position-control button {
+  padding: 5px 7px;
+  font-size: 0.62rem;
+  text-transform: capitalize;
 }
 
 .results {
@@ -395,7 +495,7 @@ h1 {
 .image-frame {
   display: grid;
   width: 100%;
-  height: clamp(220px, 29vw, 310px);
+  height: clamp(210px, 27vw, 290px);
   place-items: center;
   overflow: hidden;
   border-block: 1px solid #30363d;
@@ -414,9 +514,44 @@ h1 {
 }
 
 .image-frame img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.original-frame {
+  padding: 10px;
+}
+
+.original-frame img {
+  object-fit: contain;
+}
+
+.output-frame {
+  padding: 14px;
+}
+
+.output-preview {
+  width: min(100%, 260px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid #30363d;
+  border-radius: 7px;
+  background: #0d1117;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.output-preview.circle {
+  width: min(100%, 180px);
+  border: 3px solid #30363d;
+  border-radius: 50%;
+}
+
+.output-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .processing-placeholder {
@@ -425,36 +560,13 @@ h1 {
   font-weight: 600;
 }
 
-.avatar-preview {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 13px;
+.preview-note {
+  padding: 8px 13px;
   border-bottom: 1px solid #30363d;
   background: #0f172a;
-}
-
-.avatar-preview img {
-  width: 48px;
-  height: 48px;
-  border: 2px solid #30363d;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.avatar-preview div {
-  display: grid;
-  gap: 2px;
-}
-
-.avatar-preview span {
-  font-size: 0.74rem;
-  font-weight: 700;
-}
-
-.avatar-preview small {
   color: #8b949e;
-  font-size: 0.67rem;
+  font-size: 0.65rem;
+  line-height: 1.4;
 }
 
 .result-details {
@@ -486,31 +598,23 @@ h1 {
 
 .download-panel {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 14px;
+  gap: 18px;
   margin-top: 14px;
-  padding: 13px 15px;
+  padding: 12px 14px;
   border-radius: 10px;
-  background: #0f172a;
+  background: #161b22;
 }
 
-.download-step {
-  padding-right: 14px;
-  border-right: 1px solid #30363d;
-}
-
-.download-panel > div:nth-child(2) {
+.download-panel > div {
   min-width: 0;
 }
 
-.download-panel > div:nth-child(2) > span {
+.download-panel > div > strong {
   display: block;
-  overflow: hidden;
   font-size: 0.8rem;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .download-panel p {
@@ -519,8 +623,16 @@ h1 {
   font-size: 0.68rem;
 }
 
-.download-panel p strong {
+.download-panel p span {
   color: #3fb950;
+  font-weight: 700;
+}
+
+.download-panel small {
+  display: block;
+  margin-top: 3px;
+  color: #6e7681;
+  font-size: 0.62rem;
 }
 
 .download-button {
@@ -557,22 +669,21 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .review-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .crop-controls {
+    grid-template-columns: 1fr;
+  }
+
   .image-frame {
     height: min(76vw, 330px);
   }
 
   .download-panel {
     grid-template-columns: 1fr;
-  }
-
-  .download-step {
-    padding: 0 0 8px;
-    border-right: 0;
-    border-bottom: 1px solid #30363d;
-  }
-
-  .download-panel > div:nth-child(2) > span {
-    white-space: normal;
   }
 
   .download-button {
