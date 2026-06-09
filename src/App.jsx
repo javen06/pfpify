@@ -571,7 +571,6 @@ export default function App() {
                 />
                 <div className="circle-mask" aria-hidden="true" />
                 <div className="circle-guide" aria-hidden="true" />
-                <span className="drag-hint">Drag to reposition</span>
               </div>
               <div className="zoom-row">
                 <label htmlFor="crop-zoom">Zoom</label>
@@ -592,7 +591,7 @@ export default function App() {
                 <output htmlFor="crop-zoom">{crop.zoom.toFixed(2)}×</output>
               </div>
               <p className="crop-helper">
-                Drag and zoom until the important part sits inside the circle.
+                Drag image to reposition · Use zoom to adjust framing
               </p>
             </div>
 
