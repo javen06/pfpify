@@ -74,9 +74,12 @@ async function findLargestDimension(maximumDimension, testDimension) {
   return bestResult;
 }
 
-export async function optimiseImage(canvas, image, preset, crop, priority) {
+async function optimiseJpeg(canvas, image, preset, crop, priority) {
   const originalSquareSize = Math.floor(Math.min(image.width, image.height));
-  const maximumDimension = Math.min(originalSquareSize, preset.exportCap);
+  const maximumDimension = Math.min(
+    originalSquareSize,
+    preset.exportCap ?? preset.maxPx,
+  );
 
   if (maximumDimension < 1) {
     throw new Error("The selected image has invalid dimensions.");
@@ -119,7 +122,10 @@ export async function optimiseImage(canvas, image, preset, crop, priority) {
 
 export async function optimisePng(canvas, image, preset, crop) {
   const originalSquareSize = Math.floor(Math.min(image.width, image.height));
-  const maximumDimension = Math.min(originalSquareSize, preset.exportCap);
+  const maximumDimension = Math.min(
+    originalSquareSize,
+    preset.exportCap ?? preset.maxPx,
+  );
 
   if (maximumDimension < 1) {
     throw new Error("The selected image has invalid dimensions.");
@@ -142,4 +148,17 @@ export async function optimisePng(canvas, image, preset, crop) {
   }
 
   return result;
+}
+
+export async function optimiseImage(
+  canvas,
+  image,
+  preset,
+  crop,
+  priority = "balanced",
+  format = "jpeg",
+) {
+  return format === "png"
+    ? optimisePng(canvas, image, preset, crop)
+    : optimiseJpeg(canvas, image, preset, crop, priority);
 }

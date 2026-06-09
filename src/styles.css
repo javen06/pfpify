@@ -137,8 +137,7 @@ h1 {
   transition:
     transform 160ms ease,
     border-color 140ms ease,
-    background 140ms ease,
-    box-shadow 160ms ease;
+    background 140ms ease;
 }
 
 .preset-button:hover {
@@ -146,6 +145,10 @@ h1 {
   background: rgba(17, 24, 32, 0.88);
   box-shadow: none;
   transform: translateY(-1px);
+}
+
+.preset-button:active {
+  transform: translateY(0) scale(0.99);
 }
 
 .preset-button.active {
@@ -175,12 +178,35 @@ h1 {
 }
 
 .advanced-options > summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   width: fit-content;
   padding: 10px 0 0;
   color: #8b949e;
   cursor: pointer;
   font-size: 0.76rem;
   font-weight: 650;
+  list-style: none;
+  transition: color 140ms ease;
+}
+
+.advanced-options > summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-options > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 160ms ease;
+}
+
+.advanced-options[open] > summary::before {
+  transform: rotate(45deg) translate(-1px, -1px);
 }
 
 .advanced-options > summary:hover {
@@ -195,9 +221,9 @@ h1 {
 
 .advanced-content {
   display: grid;
-  gap: 24px;
-  padding-top: 20px;
-  animation: disclose 160ms ease-out;
+  gap: 18px;
+  padding-top: 16px;
+  animation: disclose 200ms ease-out;
 }
 
 @keyframes disclose {
@@ -213,10 +239,10 @@ h1 {
 }
 
 .priority-setting {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  gap: 12px 24px;
 }
 
 .priority-setting strong {
@@ -226,6 +252,7 @@ h1 {
 .priority-options {
   display: flex;
   flex: 0 0 auto;
+  justify-self: end;
   padding: 3px;
   border: 1px solid #30363d;
   border-radius: 7px;
@@ -242,7 +269,16 @@ h1 {
   font-size: 0.67rem;
   transition:
     color 140ms ease,
-    background 140ms ease;
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+.priority-options button:hover {
+  color: #f0f6fc;
+}
+
+.priority-options button:active {
+  transform: scale(0.98);
 }
 
 .priority-options button.active {
@@ -250,8 +286,17 @@ h1 {
   color: #fff;
 }
 
+.priority-help {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  color: #6e7681;
+  font-size: 0.64rem;
+}
+
 .advanced-setting {
-  padding-top: 20px;
+  padding-top: 16px;
   border-top: 1px solid #21262d;
 }
 
@@ -372,6 +417,11 @@ h1 {
   transform: translateY(-1px);
 }
 
+.select-button:active,
+.download-button:active {
+  transform: translateY(0) scale(0.99);
+}
+
 .select-button:focus-visible,
 .download-button:focus-visible {
   outline: 2px solid rgba(88, 166, 255, 0.75);
@@ -467,6 +517,10 @@ h1 {
   border: 1px solid rgba(48, 54, 61, 0.58);
   border-radius: 12px;
   background: rgba(22, 27, 34, 0.52);
+}
+
+.crop-workspace-single {
+  grid-template-columns: 1fr;
 }
 
 .crop-editor {
@@ -721,6 +775,10 @@ h1 {
   font-family: Georgia, serif;
   font-size: 0.78rem;
   font-weight: 700;
+  transition:
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
 }
 
 .info-button:hover,
@@ -728,6 +786,10 @@ h1 {
   border-color: #58a6ff;
   color: #58a6ff;
   outline: none;
+}
+
+.info-button:active {
+  transform: scale(0.94);
 }
 
 .output-inspector {
@@ -897,12 +959,17 @@ h1 {
 
   .priority-setting {
     align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .priority-options {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+    justify-self: stretch;
+  }
+
+  .priority-help {
+    grid-column: auto;
   }
 
   .review-heading {

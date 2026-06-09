@@ -1,4 +1,4 @@
-import { PRESETS, PRIORITIES } from "../lib/presets";
+import { PLATFORMS, PRIORITIES } from "../lib/presets";
 
 export default function PlatformSelector({
   selectedPreset,
@@ -18,7 +18,7 @@ export default function PlatformSelector({
       </div>
 
       <div className="preset-options">
-        {Object.entries(PRESETS).map(([key, option]) => (
+        {Object.entries(PLATFORMS).map(([key, option]) => (
           <button
             key={key}
             type="button"
@@ -26,11 +26,8 @@ export default function PlatformSelector({
             aria-pressed={selectedPreset === key}
             onClick={() => onSelectPreset(key)}
           >
-            <strong>{option.name}</strong>
-            <span>
-              {option.defaultExportCap}×{option.defaultExportCap} ·{" "}
-              {option.maxBytes / 1_000_000} MB
-            </span>
+            <strong>{option.label}</strong>
+            <span>{option.displayLabel}</span>
           </button>
         ))}
       </div>
@@ -52,6 +49,11 @@ export default function PlatformSelector({
                   {option.name}
                 </button>
               ))}
+            </div>
+            <div className="priority-help">
+              <span>Balanced = recommended</span>
+              <span>Max resolution = largest output</span>
+              <span>Max quality = less JPEG compression</span>
             </div>
           </div>
 
