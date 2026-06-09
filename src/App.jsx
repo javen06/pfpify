@@ -57,8 +57,8 @@ function canvasToJpeg(canvas, quality) {
 function drawSquareCrop(canvas, image, dimension, crop) {
   const context = canvas.getContext("2d");
   const sourceSize = Math.min(image.width, image.height) / crop.zoom;
-  const horizontalRatio = { left: 0, center: 0.5, right: 1 }[crop.horizontal];
-  const verticalRatio = { top: 0, center: 0.5, bottom: 1 }[crop.vertical];
+  const horizontalRatio = (crop.x + 1) / 2;
+  const verticalRatio = (crop.y + 1) / 2;
   const sourceX = (image.width - sourceSize) * horizontalRatio;
   const sourceY = (image.height - sourceSize) * verticalRatio;
 
@@ -167,15 +167,22 @@ async function optimiseImage(canvas, image, preset, crop) {
 export default function App() {
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
+  const editorRef = useRef(null);
   const processingIdRef = useRef(0);
+  const cropDebounceRef = useRef(null);
+  const dragRef = useRef(null);
+  const animationFrameRef = useRef(null);
   const [selectedPreset, setSelectedPreset] = useState("github");
   const [maximumResolutionMode, setMaximumResolutionMode] = useState(false);
   const [customExportCap, setCustomExportCap] = useState(2999);
-  const [previewMode, setPreviewMode] = useState("square");
   const [crop, setCrop] = useState({
     zoom: 1,
-    horizontal: "center",
-    vertical: "center",
+    x: 0,
+    y: 0,
+  });
+  const [sourceDimensions, setSourceDimensions] = useState({
+    width: 1,
+    height: 1,
   });
   const [sourceFile, setSourceFile] = useState(null);
   const [beforeUrl, setBeforeUrl] = useState("");
@@ -193,6 +200,13 @@ export default function App() {
   useEffect(() => {
     return () => afterUrl && URL.revokeObjectURL(afterUrl);
   }, [afterUrl]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(cropDebounceRef.current);
+      cancelAnimationFrame(animationFrameRef.current);
+    };
+  }, []);
 
   async function processFile(
     file,
@@ -221,6 +235,9 @@ export default function App() {
     setAfterUrl("");
 
     if (updateSource) {
+      const initialCrop = { zoom: 1, x: 0, y: 0 };
+      cropSettings = initialCrop;
+      setCrop(initialCrop);
       setSourceFile(file);
       setBeforeUrl(URL.createObjectURL(file));
     }
@@ -229,6 +246,12 @@ export default function App() {
       const bitmap = await createImageBitmap(file, {
         imageOrientation: "from-image",
       });
+      if (updateSource) {
+        setSourceDimensions({
+          width: bitmap.width,
+          height: bitmap.height,
+        });
+      }
       let optimised;
 
       try {
@@ -291,9 +314,10 @@ export default function App() {
     }
   }
 
-  function updateCrop(nextCrop) {
-    setCrop(nextCrop);
-    if (sourceFile) {
+  function scheduleOptimisation(nextCrop) {
+    clearTimeout(cropDebounceRef.current);
+    cropDebounceRef.current = setTimeout(() => {
+      if (!sourceFile) return;
       const exportCap = maximumResolutionMode
         ? customExportCap
         : preset.defaultExportCap;
@@ -304,6 +328,70 @@ export default function App() {
         false,
         nextCrop,
       );
+    }, 350);
+  }
+
+  function updateCrop(nextCrop) {
+    processingIdRef.current += 1;
+    setCrop(nextCrop);
+    setResult(null);
+    scheduleOptimisation(nextCrop);
+  }
+
+  function getEditorGeometry(zoom = crop.zoom) {
+    const editorSize = editorRef.current?.clientWidth || 1;
+    const imageAspect = sourceDimensions.width / sourceDimensions.height;
+    const renderedWidth =
+      imageAspect >= 1 ? editorSize * imageAspect * zoom : editorSize * zoom;
+    const renderedHeight =
+      imageAspect >= 1 ? editorSize * zoom : (editorSize / imageAspect) * zoom;
+
+    return {
+      extraX: Math.max(0, (renderedWidth - editorSize) / 2),
+      extraY: Math.max(0, (renderedHeight - editorSize) / 2),
+    };
+  }
+
+  function handlePointerDown(event) {
+    if (!beforeUrl) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      crop,
+    };
+  }
+
+  function handlePointerMove(event) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const { extraX, extraY } = getEditorGeometry(drag.crop.zoom);
+    const nextCrop = {
+      ...drag.crop,
+      x:
+        extraX > 0
+          ? Math.max(-1, Math.min(1, drag.crop.x - (event.clientX - drag.startX) / extraX))
+          : 0,
+      y:
+        extraY > 0
+          ? Math.max(-1, Math.min(1, drag.crop.y - (event.clientY - drag.startY) / extraY))
+          : 0,
+    };
+
+    cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = requestAnimationFrame(() => {
+      processingIdRef.current += 1;
+      setCrop(nextCrop);
+      setResult(null);
+      scheduleOptimisation(nextCrop);
+    });
+  }
+
+  function handlePointerUp(event) {
+    if (dragRef.current?.pointerId === event.pointerId) {
+      dragRef.current = null;
     }
   }
 
@@ -459,142 +547,95 @@ export default function App() {
           <div className="review-heading">
             <div>
               <span>Step 3</span>
-              <h2>Review output</h2>
-            </div>
-            <div className="preview-toggle" aria-label="Output preview mode">
-              <button
-                type="button"
-                className={previewMode === "square" ? "active" : ""}
-                aria-pressed={previewMode === "square"}
-                onClick={() => setPreviewMode("square")}
-              >
-                Square preview
-              </button>
-              <button
-                type="button"
-                className={previewMode === "circle" ? "active" : ""}
-                aria-pressed={previewMode === "circle"}
-                onClick={() => setPreviewMode("circle")}
-              >
-                Circle preview
-              </button>
+              <h2>Adjust crop</h2>
             </div>
           </div>
-          <section className="crop-controls" aria-labelledby="crop-heading">
-            <div className="crop-copy">
-              <h3 id="crop-heading">Adjust crop</h3>
-              <p>
-                Move and zoom the image so the important part stays visible in
-                both square and circular previews.
+          <div className="crop-workspace">
+            <div>
+              <div
+                ref={editorRef}
+                className="crop-editor"
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+              >
+                <img
+                  src={beforeUrl}
+                  alt="Drag to position the profile crop"
+                  draggable="false"
+                  style={getCropPreviewStyle(
+                    sourceDimensions,
+                    crop,
+                  )}
+                />
+                <div className="circle-mask" aria-hidden="true" />
+                <div className="circle-guide" aria-hidden="true" />
+                <span className="drag-hint">Drag to reposition</span>
+              </div>
+              <div className="zoom-row">
+                <label htmlFor="crop-zoom">Zoom</label>
+                <input
+                  id="crop-zoom"
+                  type="range"
+                  min="1"
+                  max="2"
+                  step="0.01"
+                  value={crop.zoom}
+                  onChange={(event) =>
+                    updateCrop({
+                      ...crop,
+                      zoom: Number(event.target.value),
+                    })
+                  }
+                />
+                <output htmlFor="crop-zoom">{crop.zoom.toFixed(2)}×</output>
+              </div>
+              <p className="crop-helper">
+                Drag and zoom until the important part sits inside the circle.
               </p>
             </div>
-            <div className="zoom-control">
-              <label htmlFor="crop-zoom">Zoom</label>
-              <input
-                id="crop-zoom"
-                type="range"
-                min="1"
-                max="2"
-                step="0.05"
-                value={crop.zoom}
-                onChange={(event) =>
-                  updateCrop({
-                    ...crop,
-                    zoom: Number(event.target.value),
-                  })
-                }
-              />
-              <output htmlFor="crop-zoom">{crop.zoom.toFixed(2)}×</output>
-            </div>
-            <PositionControl
-              label="Horizontal"
-              options={["left", "center", "right"]}
-              value={crop.horizontal}
-              onChange={(horizontal) => updateCrop({ ...crop, horizontal })}
-            />
-            <PositionControl
-              label="Vertical"
-              options={["top", "center", "bottom"]}
-              value={crop.vertical}
-              onChange={(vertical) => updateCrop({ ...crop, vertical })}
-            />
-          </section>
-          <div className="results">
-            <article className="preview-card">
-            <div className="preview-heading">
-              <div>
-                <span>Before</span>
-                <strong>{sourceFile?.name}</strong>
-              </div>
-              <span className="size-label">
-                {formatBytes(sourceFile?.size || 0)}
-              </span>
-            </div>
-            <div className="image-frame original-frame">
-              <img src={beforeUrl} alt="Original upload preview" />
-            </div>
-            </article>
 
-            <article className="preview-card">
-            <div className="preview-heading">
-              <div>
-                <span>After · {preset.name}</span>
-                <strong>
-                  {result
-                    ? `${result.dimension} × ${result.dimension} JPEG`
-                    : "Optimising output"}
-                </strong>
+            <aside className="crop-summary">
+              <div className="avatar-preview-large">
+                <img
+                  src={beforeUrl}
+                  alt="Circular avatar preview"
+                  draggable="false"
+                  style={getCropPreviewStyle(sourceDimensions, crop)}
+                />
               </div>
-              <span className="size-label">
-                {result ? formatBytes(result.blob.size) : "Processing"}
-              </span>
-            </div>
-            <div className="image-frame output-frame">
-              {afterUrl ? (
-                <div
-                  className={`output-preview ${previewMode === "circle" ? "circle" : ""}`}
-                >
-                  <img src={afterUrl} alt={`Optimised ${preset.name} preview`} />
-                </div>
-              ) : (
-                <div className="processing-placeholder">Working…</div>
-              )}
-            </div>
-            {afterUrl && (
-              <div className="preview-note">
-                Platforms usually display square profile uploads as circles.
-                This preview helps you check the visible crop.
-              </div>
-            )}
-            {result && (
-              <dl className="result-details">
-                <div>
-                  <dt>Platform</dt>
-                  <dd>{result.platform}</dd>
-                </div>
-                <div>
-                  <dt>Export cap used</dt>
-                  <dd>{result.exportCap} × {result.exportCap}</dd>
-                </div>
-                <div>
-                  <dt>Final dimensions</dt>
-                  <dd>{result.dimension} × {result.dimension}</dd>
-                </div>
-                <div>
-                  <dt>File-size limit</dt>
-                  <dd>Under {formatBytes(result.maxBytes)}</dd>
-                </div>
-                <div>
-                  <dt>Final file size</dt>
-                  <dd>{formatBytes(result.blob.size)}</dd>
-                </div>
-                <div>
-                  <dt>JPEG quality</dt>
-                  <dd>{result.quality.toFixed(2)}</dd>
-                </div>
-              </dl>
-            )}
-            </article>
+              <h3>{preset.name} avatar preview</h3>
+              <p>
+                Platforms display the square upload as a circle. The downloaded
+                JPEG remains square.
+              </p>
+              <details>
+                <summary>Output details</summary>
+                {result ? (
+                  <dl className="result-details">
+                    <div>
+                      <dt>Dimensions</dt>
+                      <dd>{result.dimension} × {result.dimension}</dd>
+                    </div>
+                    <div>
+                      <dt>File size</dt>
+                      <dd>{formatBytes(result.blob.size)}</dd>
+                    </div>
+                    <div>
+                      <dt>JPEG quality</dt>
+                      <dd>{result.quality.toFixed(2)}</dd>
+                    </div>
+                    <div>
+                      <dt>Export cap</dt>
+                      <dd>{result.exportCap} × {result.exportCap}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className="processing-copy">Updating export…</p>
+                )}
+              </details>
+            </aside>
           </div>
         </section>
       )}
@@ -633,23 +674,20 @@ export default function App() {
   );
 }
 
-function PositionControl({ label, options, value, onChange }) {
-  return (
-    <div className="position-control">
-      <span>{label}</span>
-      <div>
-        {options.map((option) => (
-          <button
-            key={option}
-            type="button"
-            className={value === option ? "active" : ""}
-            aria-pressed={value === option}
-            onClick={() => onChange(option)}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+function getCropPreviewStyle(dimensions, crop) {
+  const aspect = dimensions.width / dimensions.height;
+  const baseWidth = aspect >= 1 ? aspect * 100 : 100;
+  const baseHeight = aspect >= 1 ? 100 : (1 / aspect) * 100;
+  const scaledWidth = baseWidth * crop.zoom;
+  const scaledHeight = baseHeight * crop.zoom;
+  const maxTranslateX = Math.max(0, (scaledWidth - 100) / 2);
+  const maxTranslateY = Math.max(0, (scaledHeight - 100) / 2);
+
+  return {
+    width: `${scaledWidth}%`,
+    height: `${scaledHeight}%`,
+    left: `${50 - crop.x * maxTranslateX}%`,
+    top: `${50 - crop.y * maxTranslateY}%`,
+    transform: "translate(-50%, -50%)",
+  };
 }
