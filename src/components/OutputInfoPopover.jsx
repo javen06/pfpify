@@ -34,13 +34,23 @@ export default function OutputInfoPopover({
           <dd>{formatBytes(result.blob.size)} / {formatBytes(result.maxBytes)}</dd>
         </div>
         <div>
-          <dt>Mode</dt>
-          <dd>{PRIORITIES[result.priority].name}</dd>
+          <dt>Format</dt>
+          <dd>{result.format.toUpperCase()}</dd>
         </div>
         <div>
-          <dt>JPEG</dt>
-          <dd>{result.quality.toFixed(2)}</dd>
+          <dt>Mode</dt>
+          <dd>
+            {result.format === "png"
+              ? "Dimension fit"
+              : PRIORITIES[result.priority].name}
+          </dd>
         </div>
+        {result.format === "jpeg" && (
+          <div>
+            <dt>JPEG compression</dt>
+            <dd>{result.quality.toFixed(2)}</dd>
+          </div>
+        )}
         <div>
           <dt>Status</dt>
           <dd className={withinLimit ? "status-safe" : "status-danger"}>

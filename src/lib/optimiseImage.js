@@ -1,9 +1,10 @@
-import { canvasToJpeg, drawSquareCrop } from "./imageCanvas";
+import { canvasToJpeg, canvasToPng, drawSquareCrop } from "./imageCanvas";
 
-export const MIN_QUALITY = 0.6;
+export const MIN_QUALITY = 0.5;
 export const BALANCED_MIN_QUALITY = 0.82;
-export const MAX_QUALITY = 0.98;
+export const MAX_QUALITY = 0.95;
 const QUALITY_SEARCH_STEPS = 10;
+const MIN_USEFUL_PNG_DIMENSION = 128;
 
 async function encodeAtQuality(canvas, image, dimension, maxBytes, crop, quality) {
   drawSquareCrop(canvas, image, dimension, crop);
@@ -111,6 +112,33 @@ export async function optimiseImage(canvas, image, preset, crop, priority) {
 
   if (!result) {
     throw new Error("The image could not be compressed below this preset's file limit.");
+  }
+
+  return result;
+}
+
+export async function optimisePng(canvas, image, preset, crop) {
+  const originalSquareSize = Math.floor(Math.min(image.width, image.height));
+  const maximumDimension = Math.min(originalSquareSize, preset.exportCap);
+
+  if (maximumDimension < 1) {
+    throw new Error("The selected image has invalid dimensions.");
+  }
+
+  const result = await findLargestDimension(maximumDimension, async (dimension) => {
+    drawSquareCrop(canvas, image, dimension, crop, false);
+    const blob = await canvasToPng(canvas);
+    return blob.size < preset.maxBytes ? { blob, dimension } : null;
+  });
+
+  if (
+    !result ||
+    (maximumDimension >= MIN_USEFUL_PNG_DIMENSION &&
+      result.dimension < MIN_USEFUL_PNG_DIMENSION)
+  ) {
+    throw new Error(
+      "PNG may exceed this platform limit. Try JPEG for smaller files.",
+    );
   }
 
   return result;

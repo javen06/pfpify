@@ -5,13 +5,14 @@ import CropEditor from "./components/CropEditor";
 import OutputInfoPopover from "./components/OutputInfoPopover";
 import PlatformSelector from "./components/PlatformSelector";
 import { getEditorOverflow } from "./lib/cropMath";
-import { optimiseImage } from "./lib/optimiseImage";
+import { optimiseImage, optimisePng } from "./lib/optimiseImage";
 import { ACCEPTED_TYPES, PRESETS, formatBytes } from "./lib/presets";
 
 export default function App() {
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
   const editorRef = useRef(null);
+  const reviewRef = useRef(null);
   const processingIdRef = useRef(0);
   const cropDebounceRef = useRef(null);
   const dragRef = useRef(null);
@@ -19,8 +20,9 @@ export default function App() {
 
   const [selectedPreset, setSelectedPreset] = useState("github");
   const [priority, setPriority] = useState("balanced");
+  const [outputFormat, setOutputFormat] = useState("jpeg");
   const [maximumResolutionMode, setMaximumResolutionMode] = useState(false);
-  const [customExportCap, setCustomExportCap] = useState(2999);
+  const [customExportCap, setCustomExportCap] = useState(1000);
   const [crop, setCrop] = useState({ zoom: 1, x: 0, y: 0 });
   const [sourceDimensions, setSourceDimensions] = useState({
     width: 1,
@@ -28,6 +30,7 @@ export default function App() {
   });
   const [sourceFile, setSourceFile] = useState(null);
   const [beforeUrl, setBeforeUrl] = useState("");
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [afterUrl, setAfterUrl] = useState("");
   const [result, setResult] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -52,6 +55,19 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!imageLoaded) return;
+
+    const frameId = requestAnimationFrame(() => {
+      reviewRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [imageLoaded]);
+
   function getExportCap(presetKey = selectedPreset) {
     return maximumResolutionMode
       ? customExportCap
@@ -65,6 +81,7 @@ export default function App() {
     updateSource = true,
     cropSettings = crop,
     prioritySetting = priority,
+    formatSetting = outputFormat,
   ) {
     if (!file) return;
 
@@ -91,6 +108,7 @@ export default function App() {
       setResult(null);
       setAfterUrl("");
       setSourceFile(file);
+      setImageLoaded(false);
       setBeforeUrl(URL.createObjectURL(file));
     }
 
@@ -104,17 +122,26 @@ export default function App() {
           width: bitmap.width,
           height: bitmap.height,
         });
+        setImageLoaded(true);
       }
 
       let optimised;
       try {
-        optimised = await optimiseImage(
-          canvasRef.current,
-          bitmap,
-          activePreset,
-          cropSettings,
-          prioritySetting,
-        );
+        optimised =
+          formatSetting === "png"
+            ? await optimisePng(
+                canvasRef.current,
+                bitmap,
+                activePreset,
+                cropSettings,
+              )
+            : await optimiseImage(
+                canvasRef.current,
+                bitmap,
+                activePreset,
+                cropSettings,
+                prioritySetting,
+              );
       } finally {
         bitmap.close();
       }
@@ -131,6 +158,8 @@ export default function App() {
         exportCap: activePreset.exportCap,
         maxBytes: activePreset.maxBytes,
         priority: prioritySetting,
+        format: formatSetting,
+        fileName: `${activePreset.fileStem}.${formatSetting === "png" ? "png" : "jpg"}`,
         formattedSize: formatBytes(optimised.blob.size),
       });
       setIsOutputPending(false);
@@ -151,6 +180,7 @@ export default function App() {
     cropSettings = crop,
     prioritySetting = priority,
     exportCap = getExportCap(presetKey),
+    formatSetting = outputFormat,
   } = {}) {
     if (!sourceFile) return;
     processFile(
@@ -160,6 +190,7 @@ export default function App() {
       false,
       cropSettings,
       prioritySetting,
+      formatSetting,
     );
   }
 
@@ -174,6 +205,14 @@ export default function App() {
   function selectPriority(nextPriority) {
     setPriority(nextPriority);
     reprocess({ prioritySetting: nextPriority });
+  }
+
+  function selectOutputFormat(nextFormat) {
+    if (nextFormat === outputFormat) return;
+    setOutputFormat(nextFormat);
+    setResult(null);
+    setAfterUrl("");
+    reprocess({ formatSetting: nextFormat });
   }
 
   function toggleMaximumResolution(event) {
@@ -272,6 +311,7 @@ export default function App() {
       true,
       crop,
       priority,
+      outputFormat,
     );
   }
 
@@ -284,7 +324,7 @@ export default function App() {
     <main className="app-shell">
       <section className="hero">
         <p className="eyebrow">local image processing</p>
-        <h1>AvatarPress</h1>
+        <h1>Pfpify</h1>
         <p className="intro">
           Crop, preview, and export clean profile images locally.
         </p>
@@ -331,8 +371,12 @@ export default function App() {
 
       {error && <p className="error-message">{error}</p>}
 
-      {beforeUrl && (
-        <section className="review-section" aria-live="polite">
+      {imageLoaded && beforeUrl && (
+        <section
+          ref={reviewRef}
+          className="review-section"
+          aria-live="polite"
+        >
           <div className="review-heading">
             <div>
               <span>Step 3</span>
@@ -360,13 +404,13 @@ export default function App() {
         </section>
       )}
 
-      {afterUrl && result && (
+      {imageLoaded && afterUrl && result && (
         <section className="download-panel">
           <div className="download-summary">
             <strong>Ready for {result.platform}</strong>
             <p>
               {result.dimension}×{result.dimension} ·{" "}
-              {formatBytes(result.blob.size)} ·{" "}
+              {formatBytes(result.blob.size)} · {result.format.toUpperCase()} ·{" "}
               <span>
                 {result.blob.size < result.maxBytes ? "within limit" : "over limit"}
               </span>
@@ -384,13 +428,33 @@ export default function App() {
             >
               i
             </button>
+            <div className="format-setting" aria-label="Output format">
+              <button
+                type="button"
+                className={outputFormat === "jpeg" ? "active" : ""}
+                aria-pressed={outputFormat === "jpeg"}
+                onClick={() => selectOutputFormat("jpeg")}
+              >
+                JPEG
+              </button>
+              <button
+                type="button"
+                className={outputFormat === "png" ? "active" : ""}
+                aria-pressed={outputFormat === "png"}
+                onClick={() => selectOutputFormat("png")}
+              >
+                PNG
+              </button>
+            </div>
             <a
               className={`download-button ${isOutputPending ? "disabled" : ""}`}
               href={isOutputPending ? undefined : afterUrl}
               aria-disabled={isOutputPending}
-              download={preset.fileName}
+              download={result.fileName}
             >
-              {isOutputPending ? "Updating…" : "Download JPEG"}
+              {isOutputPending
+                ? "Updating…"
+                : `Download ${result.format.toUpperCase()}`}
             </a>
           </div>
 

@@ -79,7 +79,7 @@ export default function PlatformSelector({
                 <input
                   id="export-cap"
                   type="range"
-                  min="500"
+                  min="400"
                   max="2999"
                   step="1"
                   value={customExportCap}
@@ -90,7 +90,7 @@ export default function PlatformSelector({
                   onKeyUp={onCustomExportCapCommit}
                 />
                 <div className="range-labels">
-                  <span>500</span>
+                  <span>400</span>
                   <span>2999</span>
                 </div>
               </div>
