@@ -189,6 +189,8 @@ export default function App() {
   const [afterUrl, setAfterUrl] = useState("");
   const [result, setResult] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isOutputPending, setIsOutputPending] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [error, setError] = useState("");
 
   const preset = PRESETS[selectedPreset];
@@ -230,14 +232,15 @@ export default function App() {
     };
 
     setIsProcessing(true);
+    setIsOutputPending(true);
     setError("");
-    setResult(null);
-    setAfterUrl("");
 
     if (updateSource) {
       const initialCrop = { zoom: 1, x: 0, y: 0 };
       cropSettings = initialCrop;
       setCrop(initialCrop);
+      setResult(null);
+      setAfterUrl("");
       setSourceFile(file);
       setBeforeUrl(URL.createObjectURL(file));
     }
@@ -277,6 +280,7 @@ export default function App() {
         exportCap: activePreset.exportCap,
         maxBytes: activePreset.maxBytes,
       });
+      setIsOutputPending(false);
     } catch (processingError) {
       if (processingId === processingIdRef.current) {
         setError(processingError.message || "The image could not be processed.");
@@ -284,6 +288,7 @@ export default function App() {
     } finally {
       if (processingId === processingIdRef.current) {
         setIsProcessing(false);
+        setIsOutputPending(false);
       }
     }
   }
@@ -334,7 +339,7 @@ export default function App() {
   function updateCrop(nextCrop) {
     processingIdRef.current += 1;
     setCrop(nextCrop);
-    setResult(null);
+    setIsOutputPending(true);
     scheduleOptimisation(nextCrop);
   }
 
@@ -384,7 +389,7 @@ export default function App() {
     animationFrameRef.current = requestAnimationFrame(() => {
       processingIdRef.current += 1;
       setCrop(nextCrop);
-      setResult(null);
+      setIsOutputPending(true);
       scheduleOptimisation(nextCrop);
     });
   }
@@ -641,7 +646,7 @@ export default function App() {
 
       {afterUrl && result && (
         <section className="download-panel">
-          <div>
+          <div className="download-summary">
             <strong>Ready for {result.platform}</strong>
             <p>
               {result.dimension}×{result.dimension} ·{" "}
@@ -654,13 +659,35 @@ export default function App() {
               display themselves.
             </small>
           </div>
-          <a
-            className="download-button"
-            href={afterUrl}
-            download={preset.fileName}
-          >
-            {preset.downloadLabel}
-          </a>
+          <div className="download-actions">
+            <button
+              type="button"
+              className="info-button"
+              aria-label="Output details"
+              title="Output details"
+              aria-expanded={isInfoOpen}
+              onClick={() => setIsInfoOpen((open) => !open)}
+            >
+              i
+            </button>
+            <a
+              className={`download-button ${isOutputPending ? "disabled" : ""}`}
+              href={isOutputPending ? undefined : afterUrl}
+              aria-disabled={isOutputPending}
+              download={preset.fileName}
+            >
+              {isOutputPending ? "Updating JPEG…" : preset.downloadLabel}
+            </a>
+          </div>
+
+          {isInfoOpen && (
+            <OutputInspector
+              result={result}
+              sourceDimensions={sourceDimensions}
+              isUpdating={isOutputPending || isProcessing}
+              onClose={() => setIsInfoOpen(false)}
+            />
+          )}
         </section>
       )}
 
@@ -671,6 +698,89 @@ export default function App() {
       </footer>
     </main>
   );
+}
+
+function OutputInspector({
+  result,
+  sourceDimensions,
+  isUpdating,
+  onClose,
+}) {
+  const budgetPercent = (result.blob.size / result.maxBytes) * 100;
+  const budgetTone =
+    budgetPercent > 95 ? "danger" : budgetPercent >= 80 ? "warning" : "safe";
+  const limiter = getLimitingFactor(result, sourceDimensions);
+
+  return (
+    <aside className="output-inspector" aria-label="Output details">
+      <div className="inspector-heading">
+        <div>
+          <strong>Output details</strong>
+          {isUpdating && <span>Updating output…</span>}
+        </div>
+        <button type="button" aria-label="Close output details" onClick={onClose}>
+          ×
+        </button>
+      </div>
+
+      <dl className="inspector-grid">
+        <div>
+          <dt>Platform</dt>
+          <dd>{result.platform}</dd>
+        </div>
+        <div>
+          <dt>Output</dt>
+          <dd>{result.dimension} × {result.dimension}</dd>
+        </div>
+        <div>
+          <dt>File size</dt>
+          <dd>{formatBytes(result.blob.size)} / {formatBytes(result.maxBytes)}</dd>
+        </div>
+        <div>
+          <dt>JPEG quality</dt>
+          <dd>{result.quality.toFixed(2)}</dd>
+        </div>
+        <div>
+          <dt>Export cap</dt>
+          <dd>{result.exportCap} × {result.exportCap}</dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd className={result.blob.size < result.maxBytes ? "status-safe" : "status-danger"}>
+            {result.blob.size < result.maxBytes ? "Within limit" : "Exceeding limit"}
+          </dd>
+        </div>
+        <div>
+          <dt>Limiter</dt>
+          <dd>{limiter}</dd>
+        </div>
+      </dl>
+
+      <div className="budget-row">
+        <span>Budget used</span>
+        <strong>{budgetPercent.toFixed(1)}%</strong>
+      </div>
+      <div className="budget-track" aria-label={`${budgetPercent.toFixed(1)}% of file-size budget used`}>
+        <span
+          className={budgetTone}
+          style={{ width: `${Math.min(100, budgetPercent)}%` }}
+        />
+      </div>
+    </aside>
+  );
+}
+
+function getLimitingFactor(result, sourceDimensions) {
+  const sourceLimit = Math.floor(
+    Math.min(sourceDimensions.width, sourceDimensions.height),
+  );
+  const maximumDimension = Math.min(sourceLimit, result.exportCap);
+
+  if (result.dimension < maximumDimension) return "File-size-limited";
+  if (sourceLimit <= result.exportCap) return "Source-limited";
+  if (result.exportCap < sourceLimit) return "Export-cap-limited";
+  if (result.quality >= MAX_QUALITY - 0.001) return "Quality-maxed";
+  return "Balanced";
 }
 
 function getCropPreviewStyle(dimensions, crop) {
