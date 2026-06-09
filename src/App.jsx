@@ -323,10 +323,10 @@ export default function App() {
   return (
     <main className="app-shell">
       <section className="hero">
-        <p className="eyebrow">local image processing</p>
+        <p className="eyebrow">Browser-only image processing</p>
         <h1>Pfpify</h1>
         <p className="intro">
-          Crop, preview, and export clean profile images locally.
+          Clean profile photos for GitHub, LinkedIn, X, Discord, and more.
         </p>
       </section>
 
@@ -378,10 +378,7 @@ export default function App() {
           aria-live="polite"
         >
           <div className="review-heading">
-            <div>
-              <span>Step 3</span>
-              <h2>Adjust crop</h2>
-            </div>
+            <h2>Adjust crop</h2>
           </div>
 
           <div className="crop-workspace">
@@ -399,6 +396,7 @@ export default function App() {
               imageUrl={beforeUrl}
               sourceDimensions={sourceDimensions}
               crop={crop}
+              result={result}
             />
           </div>
         </section>

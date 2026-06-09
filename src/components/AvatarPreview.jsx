@@ -4,6 +4,7 @@ export default function AvatarPreview({
   imageUrl,
   sourceDimensions,
   crop,
+  result,
 }) {
   return (
     <aside className="crop-summary">
@@ -15,8 +16,11 @@ export default function AvatarPreview({
           style={getCropPreviewStyle(sourceDimensions, crop)}
         />
       </div>
-      <h3>Preview</h3>
-      <p>Approximate circular preview.</p>
+      {result && (
+        <p>
+          {result.dimension}×{result.dimension} · {result.format.toUpperCase()}
+        </p>
+      )}
     </aside>
   );
 }

@@ -14,10 +14,7 @@ export default function PlatformSelector({
   return (
     <section className="preset-section" aria-labelledby="preset-heading">
       <div className="section-heading">
-        <div>
-          <span>Step 1</span>
-          <h2 id="preset-heading">Choose a platform</h2>
-        </div>
+        <h2 id="preset-heading">Choose a platform</h2>
       </div>
 
       <div className="preset-options">
